@@ -1,0 +1,394 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+            color: #333;
+        }
+        h1 { border-bottom: 2px solid #333; padding-bottom: 10px; }
+        h2 { border-bottom: 1px solid #ccc; padding-bottom: 8px; margin-top: 30px; }
+        h3 { margin-top: 25px; }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+            font-weight: bold;
+        }
+        hr { border: 0; border-top: 1px solid #ddd; margin: 30px 0; }
+    </style>
+</head>
+<body>
+<h1>2D Streamfunction-Vorticity CFD Solver</h1>
+<h2>Technical Documentation</h2>
+<hr />
+<h2>1. Problem Statement</h2>
+<h3>1.1 Physical Problem</h3>
+<p>This solver simulates incompressible, viscous fluid flow in a 2D rectangular channel domain. The physical configuration consists of:</p>
+<ul>
+<li><strong>Domain dimensions</strong>: Length L = 10 m, Height H = 1 m</li>
+<li><strong>Flow characteristics</strong>: Inlet velocity U₀ = 1 m/s, Reynolds number Re = 1000</li>
+<li><strong>Flow type</strong>: Laminar channel flow with parabolic inlet profile</li>
+</ul>
+<p>The problem represents a classic computational fluid dynamics test case used to validate numerical methods for incompressible Navier-Stokes equations.</p>
+<h3>1.2 Governing Equations</h3>
+<p>The incompressible Navier-Stokes equations in 2D are reformulated using the streamfunction-vorticity (ψ-ω) approach:</p>
+<p><strong>Vorticity Transport Equation:</strong></p>
+<pre><code>∂ω/∂t + u·∂ω/∂x + v·∂ω/∂y = (1/Re)(∂²ω/∂x² + ∂²ω/∂y²)
+</code></pre>
+<p><strong>Streamfunction-Vorticity Relation:</strong></p>
+<pre><code>∇²ψ = ω
+</code></pre>
+<p>or equivalently:</p>
+<pre><code>∂²ψ/∂x² + ∂²ψ/∂y² = ω
+</code></pre>
+<p><strong>Velocity-Streamfunction Relations:</strong></p>
+<pre><code>u = ∂ψ/∂y
+v = -∂ψ/∂x
+</code></pre>
+<p>where:
+- ω = vorticity (∂v/∂x - ∂u/∂y)
+- ψ = streamfunction
+- u, v = velocity components in x and y directions
+- Re = Reynolds number (ρUL/μ)</p>
+<h3>1.3 Advantages of Streamfunction-Vorticity Formulation</h3>
+<p>This formulation offers several benefits:
+- <strong>Automatic continuity satisfaction</strong>: The continuity equation (∇·u = 0) is automatically satisfied by the velocity-streamfunction relationship
+- <strong>No pressure term</strong>: Eliminates the pressure field from the momentum equations, reducing computational complexity
+- <strong>Natural boundary conditions</strong>: Wall conditions are naturally expressed in terms of streamfunction values</p>
+<hr />
+<h2>2. Numerical Method</h2>
+<h3>2.1 Discretization Approach</h3>
+<p>The solver employs a <strong>finite difference method</strong> with:
+- <strong>Spatial discretization</strong>: Second-order central differences
+- <strong>Temporal discretization</strong>: Explicit forward Euler for vorticity transport
+- <strong>Grid</strong>: Uniform rectangular mesh with nx × ny points</p>
+<h3>2.2 Grid Generation</h3>
+<p>The computational domain is discretized uniformly:
+- x-direction: nx = 201 points, spacing dx = L/(nx-1)
+- y-direction: ny = 51 points, spacing dy = H/(ny-1)</p>
+<pre><code>x ∈ [0, L], with dx = 0.05 m
+y ∈ [0, H], with dy = 0.02 m
+</code></pre>
+<h3>2.3 Solution Algorithm</h3>
+<p>The solver uses a <strong>segregated approach</strong> with operator splitting:</p>
+<p><strong>Time-stepping loop:</strong>
+1. <strong>Solve Poisson equation for ψ</strong>: Given ω, solve ∇²ψ = ω iteratively
+2. <strong>Compute velocities</strong>: Calculate u and v from ψ using finite differences
+3. <strong>Advance vorticity</strong>: Update ω using the vorticity transport equation
+4. <strong>Apply boundary conditions</strong>: Update boundary values for both ψ and ω
+5. <strong>Check convergence</strong>: Monitor residuals and iterate</p>
+<hr />
+<h2>3. Solution Methods</h2>
+<h3>3.1 Streamfunction Solver (Poisson Equation)</h3>
+<p>The Poisson equation ∇²ψ = ω is solved using <strong>Successive Over-Relaxation (SOR)</strong> with point-wise Gauss-Seidel iteration.</p>
+<p><strong>Discretized equation:</strong></p>
+<pre><code>ψᵢⱼ = [dx²(ψᵢ,ⱼ₊₁ + ψᵢ,ⱼ₋₁) + dy²(ψᵢ₊₁,ⱼ + ψᵢ₋₁,ⱼ) + dx²dy²ωᵢⱼ] / [2(dx² + dy²)]
+</code></pre>
+<p><strong>Algorithm:</strong>
+- Iterative method with relaxation parameter ω_relax = 1.0 (Gauss-Seidel)
+- Convergence tolerance: 10⁻⁸
+- Maximum iterations: 3000
+- Updates are performed in-place for faster convergence</p>
+<p><strong>Why this method?</strong>
+- Simple to implement and parallelize
+- Robust convergence for elliptic problems
+- Well-suited for rectangular domains
+- Low memory requirements</p>
+<h3>3.2 Vorticity Advection-Diffusion Solver</h3>
+<p>The vorticity transport equation is advanced using <strong>explicit Euler time integration</strong> with central differences for spatial derivatives.</p>
+<p><strong>Discretization:</strong></p>
+<p><strong>Advection term:</strong></p>
+<pre><code>ADV = u·∂ω/∂x + v·∂ω/∂y
+    ≈ uᵢⱼ(ωᵢ₊₁,ⱼ - ωᵢ₋₁,ⱼ)/(2dx) + vᵢⱼ(ωᵢ,ⱼ₊₁ - ωᵢ,ⱼ₋₁)/(2dy)
+</code></pre>
+<p><strong>Diffusion term:</strong></p>
+<pre><code>DIFF = (1/Re)∇²ω
+     ≈ (1/Re)[(ωᵢ₊₁,ⱼ - 2ωᵢⱼ + ωᵢ₋₁,ⱼ)/dx² + (ωᵢ,ⱼ₊₁ - 2ωᵢⱼ + ωᵢ,ⱼ₋₁)/dy²]
+</code></pre>
+<p><strong>Time advancement:</strong></p>
+<pre><code>ωⁿ⁺¹ᵢⱼ = ωⁿᵢⱼ + Δt(-ADV + DIFF)
+</code></pre>
+<p><strong>Why explicit method?</strong>
+- Straightforward implementation
+- No need for matrix solvers
+- Suitable for moderate CFL numbers
+- Time step automatically adjusted for stability</p>
+<hr />
+<h2>4. Stability Analysis</h2>
+<h3>4.1 CFL Condition (Advection)</h3>
+<p>For the advection term, the <strong>Courant-Friedrichs-Lewy (CFL)</strong> condition must be satisfied:</p>
+<pre><code>CFL = |u|Δt/Δx + |v|Δt/Δy ≤ C_max
+</code></pre>
+<p>where C_max ≈ 1 for stability.</p>
+<p><strong>Implemented constraint:</strong></p>
+<pre><code>Δt_conv = 0.5 × min(Δx, Δy) / max(u₀, 10⁻⁸)
+</code></pre>
+<p>This ensures CFL ≈ 0.5, providing a safety margin.</p>
+<h3>4.2 Diffusion Stability</h3>
+<p>For the diffusion term with explicit Euler, the <strong>von Neumann stability</strong> condition requires:</p>
+<pre><code>D_max = (Δt/Re) × (1/Δx² + 1/Δy²) ≤ 1/2
+</code></pre>
+<p><strong>Implemented constraint:</strong></p>
+<pre><code>Δt_diff = 0.25 × min(Δx², Δy²) × Re
+</code></pre>
+<p>This ensures the diffusion number D ≤ 0.25, providing stability with margin.</p>
+<h3>4.3 Final Time Step Selection</h3>
+<p>The code automatically selects:</p>
+<pre><code>Δt = min(Δt_conv, Δt_diff)
+</code></pre>
+<p><strong>For default parameters:</strong>
+- Δt_conv = 0.5 × 0.02 / 1.0 = 0.01 s
+- Δt_diff = 0.25 × 0.0004 × 1000 = 0.1 s
+- <strong>Selected Δt = 0.01 s</strong> (limited by convection)</p>
+<hr />
+<h2>5. Initial Conditions</h2>
+<h3>5.1 Streamfunction Initialization</h3>
+<p>The streamfunction is initialized with a <strong>fully developed parabolic profile</strong> to accelerate convergence:</p>
+<p><strong>Inlet velocity profile:</strong></p>
+<pre><code>u_inlet(y) = 6U₀(y/H)(1 - y/H)
+</code></pre>
+<p>This parabolic profile satisfies:
+- No-slip at walls: u(0) = u(H) = 0
+- Mean velocity: ∫u dy / H = U₀</p>
+<p><strong>Streamfunction from velocity:</strong></p>
+<pre><code>ψ(y) = ∫₀ʸ u_inlet(η) dη
+</code></pre>
+<p>Computed using trapezoidal integration:</p>
+<pre><code>ψⱼ = ψⱼ₋₁ + 0.5(uⱼ + uⱼ₋₁)(yⱼ - yⱼ₋₁)
+</code></pre>
+<p><strong>Applied everywhere:</strong>
+The inlet profile is extended throughout the domain as the initial guess, which represents a reasonable starting point.</p>
+<h3>5.2 Vorticity Initialization</h3>
+<p>Initial vorticity is set to <strong>zero in the interior</strong> and then boundary conditions are applied immediately before the first iteration.</p>
+<hr />
+<h2>6. Boundary Conditions</h2>
+<h3>6.1 Streamfunction Boundary Conditions</h3>
+<p><strong>Bottom and Top Walls (y = 0, H):</strong></p>
+<pre><code>ψ(x, 0) = 0
+ψ(x, H) = ψ_inlet(H) = constant
+</code></pre>
+<p>These ensure no flow through walls (u·n = 0).</p>
+<p><strong>Inlet (x = 0):</strong></p>
+<pre><code>ψ(0, y) = ψ_inlet(y)
+</code></pre>
+<p>Prescribed parabolic profile.</p>
+<p><strong>Outlet (x = L):</strong>
+Streamfunction naturally advects out; typically:</p>
+<pre><code>∂ψ/∂x = 0  (Neumann condition)
+</code></pre>
+<h3>6.2 Vorticity Boundary Conditions</h3>
+<p><strong>Bottom and Top Walls (y = 0, H):</strong>
+Wall vorticity enforces no-slip condition using <strong>Thom's formula</strong>:</p>
+<pre><code>ω(x, 0) = -2[ψ(x, 1) - ψ(x, 0)] / dy²
+ω(x, H) = -2[ψ(x, ny-2) - ψ(x, H)] / dy²
+</code></pre>
+<p>This ensures the velocity gradient at the wall matches the no-slip requirement.</p>
+<p><strong>Inlet (x = 0):</strong>
+Vorticity consistent with parabolic inlet profile:</p>
+<pre><code>ω_inlet(y) = -du_inlet/dy
+</code></pre>
+<p>For the parabolic profile:</p>
+<pre><code>ω_inlet(y) = -6U₀/H[1 - 2y/H]
+</code></pre>
+<p>Computed using <code>np.gradient()</code> for accuracy.</p>
+<p><strong>Outlet (x = L):</strong>
+<strong>Convective boundary condition</strong> to allow vortices to exit smoothly:</p>
+<pre><code>∂ω/∂t + U_local·∂ω/∂x = 0
+</code></pre>
+<p>Discretized using upwind differences:</p>
+<pre><code>ω(L, y)ⁿ⁺¹ = ω(L-dx, y)ⁿ - (U_local·Δt/Δx)[ω(L-dx, y) - ω(L-2dx, y)]
+</code></pre>
+<p>where U_local = u(L-dx, y) is the local velocity.</p>
+<p><strong>Corner Points:</strong>
+Averaged from adjacent boundaries:</p>
+<pre><code>ω(0, 0) = 0.5[ω(1, 0) + ω(0, 1)]
+</code></pre>
+<p>and similarly for other corners.</p>
+<hr />
+<h2>7. Convergence Criteria</h2>
+<h3>7.1 Inner Iteration (Poisson Solver)</h3>
+<p>The streamfunction solver iterates until:</p>
+<pre><code>max|ψⁿ⁺¹ - ψⁿ| &lt; tol_ψ = 10⁻⁸
+</code></pre>
+<h3>7.2 Outer Iteration (Time Stepping)</h3>
+<p>The simulation continues until vorticity field converges:</p>
+<pre><code>||ωⁿ⁺¹ - ωⁿ||₂ / (||ωⁿ||₂ + ε) &lt; tol_ω = 10⁻⁶
+</code></pre>
+<p>where ε = 10⁻¹⁴ prevents division by zero.</p>
+<p>This indicates the solution has reached steady-state.</p>
+<hr />
+<h2>8. Output and Post-Processing</h2>
+<h3>8.1 Solution Files</h3>
+<p>Output is written in <strong>Tecplot ASCII format</strong> at specified intervals:
+- Files: <code>solution_001.dat</code>, <code>solution_002.dat</code>, ...
+- Contains: x, y, ψ, ω, u, v at all grid points
+- Frequency: Every 10 iterations (default)</p>
+<h3>8.2 Residual Logging</h3>
+<p>Convergence history is logged to <code>omegarsd.dat</code>:</p>
+<pre><code>Iter  Time[s]  OmegaResidual
+   1   0.0100  1.234567e-02
+   2   0.0200  9.876543e-03
+  ...
+</code></pre>
+<h3>8.3 Final Output</h3>
+<p>Upon convergence or reaching maximum iterations:
+- <code>solution_final.dat</code>: Final converged solution
+- Console output: Convergence message and timing statistics</p>
+<hr />
+<h2>9. Computational Performance</h2>
+<h3>9.1 Complexity</h3>
+<ul>
+<li><strong>Per iteration</strong>: O(nx × ny × n_inner)</li>
+<li><strong>Total</strong>: O(n_outer × nx × ny × n_inner)</li>
+</ul>
+<p>For default parameters:
+- Grid: 201 × 51 = 10,251 points
+- Typical iterations: ~100-500 outer, ~100-500 inner per outer
+- Runtime: Minutes on modern CPU</p>
+<h3>9.2 Optimization Opportunities</h3>
+<p>Current implementation priorities:
+1. <strong>Code clarity</strong> over raw performance
+2. <strong>Stability</strong> over speed
+3. <strong>Extensibility</strong> for future enhancements</p>
+<p>Potential improvements:
+- Vectorization using NumPy operations
+- Multigrid methods for Poisson solver
+- Implicit time stepping for larger time steps
+- Parallel processing (OpenMP/MPI)</p>
+<hr />
+<h2>10. Validation and Testing</h2>
+<h3>10.1 Expected Results</h3>
+<p>For the channel flow configuration:
+- Parabolic velocity profile should develop and maintain
+- Vorticity concentrated near walls
+- Steady-state reached after transient development</p>
+<h3>10.2 Key Dimensionless Parameters</h3>
+<ul>
+<li><strong>Reynolds number (Re = 1000)</strong>: Laminar flow regime</li>
+<li><strong>Aspect ratio (L/H = 10)</strong>: Long channel allows development</li>
+<li><strong>Grid resolution</strong>: Adequate for Re = 1000</li>
+</ul>
+<h3>10.3 Physical Consistency Checks</h3>
+<ul>
+<li>Mass conservation: ∫u dy = constant</li>
+<li>Maximum velocity: u_max ≈ 1.5 U₀</li>
+<li>Wall vorticity: Proportional to wall shear stress</li>
+</ul>
+<hr />
+<h2>11. Usage Example</h2>
+<pre><code class="language-bash"># Run with default parameters
+python solver.py
+
+# Custom grid and Reynolds number
+python solver.py --nx 301 --ny 101 --Re 500
+
+# Finer time step
+python solver.py --dt 0.005 --itmax 5000
+
+# More frequent output
+python solver.py --outfreq 5
+</code></pre>
+<hr />
+<h2>12. References and Further Reading</h2>
+<ol>
+<li><strong>Streamfunction-Vorticity Methods</strong>: Classical approach for 2D incompressible flow</li>
+<li><strong>Finite Difference Methods for PDEs</strong>: Theoretical foundation</li>
+<li><strong>Computational Fluid Dynamics</strong>: Numerical techniques and stability analysis</li>
+<li><strong>Thom's Formula</strong>: Boundary vorticity calculation for no-slip walls</li>
+</ol>
+<hr />
+<h2>Appendix: Key Parameters Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>nx</td>
+<td>201</td>
+<td>Grid points in x</td>
+</tr>
+<tr>
+<td>ny</td>
+<td>51</td>
+<td>Grid points in y</td>
+</tr>
+<tr>
+<td>L</td>
+<td>10.0 m</td>
+<td>Domain length</td>
+</tr>
+<tr>
+<td>H</td>
+<td>1.0 m</td>
+<td>Domain height</td>
+</tr>
+<tr>
+<td>Re</td>
+<td>1000</td>
+<td>Reynolds number</td>
+</tr>
+<tr>
+<td>U₀</td>
+<td>1.0 m/s</td>
+<td>Inlet velocity scale</td>
+</tr>
+<tr>
+<td>Δt</td>
+<td>auto</td>
+<td>Time step (stability-limited)</td>
+</tr>
+<tr>
+<td>tol_ψ</td>
+<td>10⁻⁸</td>
+<td>Poisson solver tolerance</td>
+</tr>
+<tr>
+<td>tol_ω</td>
+<td>10⁻⁶</td>
+<td>Convergence tolerance</td>
+</tr>
+<tr>
+<td>itmax</td>
+<td>2000</td>
+<td>Maximum iterations</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><strong>Document Version</strong>: 1.0<br />
+<strong>Date</strong>: October 2025<br />
+<strong>Software</strong>: Python 3.x with NumPy</p>
+</body>
+</html>
